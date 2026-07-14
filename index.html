@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --bg: #EDE0CC;
@@ -676,7 +676,7 @@
 /* ============================================================
    1. CONFIG
    ============================================================ */
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOeGq8G7_Jzi_pKiqT1-Jmpt6RJroLzPhswO6qSHa6th_z6hTYz2CoZfTLfpC3jGpEKg/exec"; 
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOeGq8G7_Jzi_pKiqT1-Jmpt6RJroLzPhswO6qSHa6th_z6hTYz2CoZfTLfpC3jGpEKg/exec"; // Google Apps Script Web App URL
 const SCHEDULING_URL = "https://outlook.office.com/book/SoTLEthicsGroupCoachingSeries@rmiteduau.onmicrosoft.com/"; // Availability/scheduling link
 
 // Point the scheduling link at your URL (falls back gracefully if left blank)
@@ -850,49 +850,55 @@ function validate() {
 }
 
 /* ============================================================
-   6. PDF generation
+   6. PDF generation (native jsPDF text — wraps + paginates)
    ============================================================ */
-function buildPdfMarkup(data) {
-  const row = (label, val) =>
-    '<tr>' +
-      '<td style="padding:9px 12px;border:1px solid #E0CDB2;background:#FBF5EB;font-family:sans-serif;font-weight:600;font-size:11px;color:#8A3319;width:38%;vertical-align:top;letter-spacing:.02em;">' + label + '</td>' +
-      '<td style="padding:9px 12px;border:1px solid #E0CDB2;font-size:12.5px;color:#38291F;white-space:pre-wrap;vertical-align:top;">' + (val && val.length ? escapeHtml(val) : '<span style="color:#B3A18C;">—</span>') + '</td>' +
-    '</tr>';
-
-  const rows = QUESTIONS.map(([key, label]) => row(label, data[key])).join("");
-
-  return '' +
-    '<div style="font-family:Georgia,serif;color:#38291F;padding:8px 4px;">' +
-      '<div style="border-bottom:3px solid #AC4227;padding-bottom:12px;margin-bottom:16px;">' +
-        '<div style="font-family:sans-serif;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#AC4227;font-weight:700;">RMIT · Scholarship of Teaching &amp; Learning</div>' +
-        '<div style="font-family:sans-serif;font-size:20px;font-weight:700;margin-top:6px;color:#38291F;">SoTL Ethics Group Coaching — Intake, Semester 2</div>' +
-        '<div style="font-size:12px;color:#7A6656;margin-top:4px;">Submitted ' + new Date().toLocaleString() + '</div>' +
-      '</div>' +
-      '<table style="width:100%;border-collapse:collapse;">' + rows + '</table>' +
-      '<div style="margin-top:16px;font-size:11px;color:#7A6656;font-family:sans-serif;">Questions? Contact ebony.coletu@rmit.edu.vn</div>' +
-    '</div>';
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-}
-
 function downloadPdf(data) {
-  const root = document.getElementById("pdf-root");
-  root.innerHTML = buildPdfMarkup(data);
-  root.classList.add("rendering"); // bring on-screen so html2canvas can capture it
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+
+  const pageW = 210, pageH = 297;
+  const mL = 16, mR = 16, mT = 18, mB = 18;
+  const contentW = pageW - mL - mR;
+  let y = mT;
+
+  const ensure = (h) => { if (y + h > pageH - mB) { doc.addPage(); y = mT; } };
+  const draw = (lines, lh) => { for (const ln of lines) { ensure(lh); doc.text(ln, mL, y); y += lh; } };
+
+  // Header
+  doc.setFont("helvetica", "bold").setFontSize(8).setTextColor(172, 66, 39);
+  doc.text("RMIT  ·  SCHOLARSHIP OF TEACHING & LEARNING", mL, y); y += 6;
+  doc.setFontSize(15).setTextColor(56, 41, 31);
+  draw(doc.splitTextToSize("SoTL Ethics Group Coaching — Intake, Semester 2", contentW), 6.5);
+  doc.setFont("helvetica", "normal").setFontSize(9).setTextColor(122, 102, 86);
+  doc.text("Submitted " + new Date().toLocaleString(), mL, y); y += 3;
+  doc.setDrawColor(172, 66, 39).setLineWidth(0.6).line(mL, y, pageW - mR, y); y += 8;
+
+  // Question / answer blocks
+  QUESTIONS.forEach(([key, label]) => {
+    const answer = (data[key] != null && String(data[key]).trim()) ? String(data[key]) : "—";
+    const isDash = answer === "—";
+
+    doc.setFont("helvetica", "bold").setFontSize(9.5).setTextColor(138, 51, 25);
+    const labelLines = doc.splitTextToSize(label, contentW);
+    ensure(labelLines.length * 4.8 + 6);
+    draw(labelLines, 4.8);
+    y += 1.2;
+
+    doc.setFont("helvetica", "normal").setFontSize(10.5)
+       .setTextColor(isDash ? 168 : 56, isDash ? 150 : 41, isDash ? 130 : 31);
+    const answerLines = doc.splitTextToSize(answer, contentW);
+    draw(answerLines, 5.2);
+    y += 5.5;
+  });
+
+  // Footer
+  ensure(8);
+  doc.setFont("helvetica", "normal").setFontSize(8.5).setTextColor(122, 102, 86);
+  doc.text("Questions? Contact ebony.coletu@rmit.edu.vn", mL, y);
+
   const safeName = (data.name || "response").replace(/[^\w\-]+/g, "_");
-  const opt = {
-    margin: [12, 12, 12, 12],
-    filename: "SoTL_Ethics_Intake_" + safeName + ".pdf",
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", scrollX: 0, scrollY: 0, windowWidth: 800 },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    pagebreak: { mode: ["css", "legacy"] }
-  };
-  const cleanup = () => { root.classList.remove("rendering"); root.innerHTML = ""; };
-  return html2pdf().set(opt).from(root.firstElementChild).save()
-    .then(cleanup, (err) => { cleanup(); throw err; });
+  doc.save("SoTL_Ethics_Intake_" + safeName + ".pdf");
+  return Promise.resolve();
 }
 
 /* ============================================================
