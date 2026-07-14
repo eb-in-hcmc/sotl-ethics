@@ -448,7 +448,17 @@
   }
 
   /* ---------- PDF render container (off-screen) ---------- */
-  #pdf-root { position: fixed; left: -9999px; top: 0; width: 720px; }
+  #pdf-root { position: fixed; left: -9999px; top: 0; width: 760px; }
+  #pdf-root.rendering {
+    left: 0; top: 0; right: 0; bottom: 0; width: auto;
+    z-index: 2147483647;
+    background: #fff;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    padding: 24px;
+  }
+  #pdf-root.rendering > div { width: 712px; }
 </style>
 </head>
 <body>
@@ -666,7 +676,7 @@
 /* ============================================================
    1. CONFIG
    ============================================================ */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbziqXu6PiQyZZWZPLw6953HU7N5Ahjlxt1l58lQzQP2fpoekm187CpJWqOWhibuAf3B2g/exec"; // 
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyOeGq8G7_Jzi_pKiqT1-Jmpt6RJroLzPhswO6qSHa6th_z6hTYz2CoZfTLfpC3jGpEKg/exec"; 
 const SCHEDULING_URL = "https://outlook.office.com/book/SoTLEthicsGroupCoachingSeries@rmiteduau.onmicrosoft.com/"; // Availability/scheduling link
 
 // Point the scheduling link at your URL (falls back gracefully if left blank)
@@ -870,16 +880,19 @@ function escapeHtml(s) {
 function downloadPdf(data) {
   const root = document.getElementById("pdf-root");
   root.innerHTML = buildPdfMarkup(data);
+  root.classList.add("rendering"); // bring on-screen so html2canvas can capture it
   const safeName = (data.name || "response").replace(/[^\w\-]+/g, "_");
   const opt = {
     margin: [12, 12, 12, 12],
     filename: "SoTL_Ethics_Intake_" + safeName + ".pdf",
     image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", scrollX: 0, scrollY: 0, windowWidth: 800 },
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
     pagebreak: { mode: ["css", "legacy"] }
   };
-  return html2pdf().set(opt).from(root.firstElementChild).save();
+  const cleanup = () => { root.classList.remove("rendering"); root.innerHTML = ""; };
+  return html2pdf().set(opt).from(root.firstElementChild).save()
+    .then(cleanup, (err) => { cleanup(); throw err; });
 }
 
 /* ============================================================
