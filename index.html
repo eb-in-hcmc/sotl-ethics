@@ -666,7 +666,7 @@
 /* ============================================================
    1. CONFIG
    ============================================================ */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwKyKkT32xzYOEU-FphZjpFaMKjzinOWJKPR_fnMQth33fKs4kAtLpCQFg9UsxSt4rbPQ/exec"; // 
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbziqXu6PiQyZZWZPLw6953HU7N5Ahjlxt1l58lQzQP2fpoekm187CpJWqOWhibuAf3B2g/exec"; // 
 const SCHEDULING_URL = "https://outlook.office.com/book/SoTLEthicsGroupCoachingSeries@rmiteduau.onmicrosoft.com/"; // Availability/scheduling link
 
 // Point the scheduling link at your URL (falls back gracefully if left blank)
@@ -748,7 +748,7 @@ const TOTAL = TEXT_FIELDS.length + RADIO_GROUPS.length + CHECK_GROUPS.length;
 
 function updateProgress() {
   let done = 0;
-  TEXT_FIELDS.forEach(f => { if (form.elements[f] && form.elements[f].value.trim()) done++; });
+  TEXT_FIELDS.forEach(f => { const el = document.getElementById(f); if (el && el.value.trim()) done++; });
   RADIO_GROUPS.forEach(g => { if (form.querySelector('input[name="' + g + '"]:checked')) done++; });
   CHECK_GROUPS.forEach(g => { if (form.querySelector('input[name="' + g + '"]:checked')) done++; });
   const pct = Math.round((done / TOTAL) * 100);
@@ -821,8 +821,8 @@ function validate() {
   status.textContent = "";
   document.querySelectorAll(".invalid").forEach(el => el.classList.remove("invalid"));
 
-  const name = form.elements["name"];
-  const email = form.elements["email"];
+  const name = document.getElementById("name");
+  const email = document.getElementById("email");
   let firstBad = null;
 
   if (!name.value.trim()) { name.classList.add("invalid"); firstBad = firstBad || name; }
